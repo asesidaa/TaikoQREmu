@@ -1,3 +1,5 @@
+// ReSharper disable CppClangTidyPerformanceNoIntToPtr
+// ReSharper disable CppClangTidyClangDiagnosticMicrosoftCast
 #include <cstdint>
 #include <Windows.h>
 #include <MinHook.h>
@@ -9,7 +11,6 @@ enum class State
     Ready,
     AfterCopy1,
     AfterCopy2,
-    AfterCopy3
 };
 
 
@@ -24,26 +25,27 @@ char __fastcall qrInit(int64_t a1)
 
 char __fastcall qrRead(int64_t a1)
 {
-    auto type = *(DWORD*)(a1 + 16);
+    //auto type = *(DWORD*)(a1 + 16);
     // std::cout << "qrRead: type " << type << std::endl;
     *reinterpret_cast<DWORD*>(a1 + 40) = 1;
     *reinterpret_cast<DWORD*>(a1 + 16) = 1;
     return 1;
 }
 
-char __fastcall qrClose(__int64 a1)
+char __fastcall qrClose(int64_t a1)
 {
     // std::cout << "qrClose" << std::endl;
     return 1;
 }
 
-__int64 __fastcall callQrUnknown(__int64 a1)
+int64_t __fastcall callQrUnknown(int64_t a1)
 {
     // std::cout << "callQrUnknown" << std::endl;
     switch (gState)
     {
     case State::Ready:
         {
+            // std::cout << "Ready" << std::endl;
             return 1;
         }
     case State::AfterCopy1:
@@ -55,32 +57,26 @@ __int64 __fastcall callQrUnknown(__int64 a1)
     case State::AfterCopy2:
         {
             // std::cout << "AfterCopy2" << std::endl;
-            gState = State::AfterCopy3;
-            return 1;
+            return 2;
         }
-        case State::AfterCopy3:
-        {
-            // std::cout << "AfterCopy3" << std::endl;
-            return 1;
-        }
-        default:  // NOLINT(clang-diagnostic-covered-switch-default)
-            return 0;
+    default: // NOLINT(clang-diagnostic-covered-switch-default)
+        return 0;
     }
 }
 
-bool __fastcall Send1(__int64, const void*, __int64)
+bool __fastcall Send1(int64_t, const void*, int64_t)
 {
     // std::cout << "Send1" << std::endl;
     return true;
 }
 
-bool __fastcall Send2(__int64 a1, char a2)
+bool __fastcall Send2(int64_t a1, char a2)
 {
     // std::cout << "Send2" << std::endl;
     return true;
 }
 
-bool __fastcall Send3(__int64 a1)
+bool __fastcall Send3(int64_t a1)
 {
     // std::cout << "Send3" << std::endl;
     *(WORD*)(a1 + 88) = 0;
@@ -88,7 +84,7 @@ bool __fastcall Send3(__int64 a1)
     return true;
 }
 
-bool __fastcall Send4(__int64 a1)
+bool __fastcall Send4(int64_t a1)
 {
     // std::cout << "Send4" << std::endl;
     *(BYTE*)(a1 + 88) = 1;
@@ -97,13 +93,13 @@ bool __fastcall Send4(__int64 a1)
     return true;
 }
 
-__int64 __fastcall copy_data(__int64 this_, void* dest, int length)
+int64_t __fastcall copy_data(int64_t this_, void* dest, int length)
 {
     if (gInsert && gState == State::Ready)
     {
         std::cout << "Copy data, length: " << length << std::endl;
         std::string data =
-            "BNTTCNID1Qdo+PWDkSggpJV6/Amf8n5+bS7jRe7kZL7g5nx89NHsxmwt3dFB7iGC3oFQXGfd7bDJLn7k+IW8qnZarLI7rw==";
+            "BNTTCNID1";
         memcpy(dest, data.c_str(), data.size() + 1);
         gInsert = false;
         gState = State::AfterCopy1;
@@ -112,10 +108,12 @@ __int64 __fastcall copy_data(__int64 this_, void* dest, int length)
     // std::cout << "No copy" << std::endl;
     return 0;
 }
+
 int gCount = 0;
+
 extern "C" __declspec(dllexport) void Update()
 {
-    if (gState == State::AfterCopy3)
+    if (gState == State::AfterCopy2)
     {
         gCount++;
         if (gCount > 10)
@@ -124,9 +122,13 @@ extern "C" __declspec(dllexport) void Update()
             gState = State::Ready;
         }
     }
-    if (GetAsyncKeyState('A') & 0x8000)
+    if (gState == State::Ready)
     {
-        gInsert = true;
+        if (GetAsyncKeyState('P') & 0x8000)
+        {
+            std::cout << "Insert" << std::endl;
+            gInsert = true;
+        }
     }
 }
 
