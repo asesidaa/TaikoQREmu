@@ -18,14 +18,14 @@ State gState = State::Ready;
 
 char __fastcall qrInit(int64_t a1)
 {
-    std::cout << "qrInit" << std::endl;
+    // std::cout << "qrInit" << std::endl;
     return 1;
 }
 
 char __fastcall qrRead(int64_t a1)
 {
     auto type = *(DWORD*)(a1 + 16);
-    std::cout << "qrRead: type " << type << std::endl;
+    // std::cout << "qrRead: type " << type << std::endl;
     *reinterpret_cast<DWORD*>(a1 + 40) = 1;
     *reinterpret_cast<DWORD*>(a1 + 16) = 1;
     return 1;
@@ -33,13 +33,13 @@ char __fastcall qrRead(int64_t a1)
 
 char __fastcall qrClose(__int64 a1)
 {
-    std::cout << "qrClose" << std::endl;
+    // std::cout << "qrClose" << std::endl;
     return 1;
 }
 
 __int64 __fastcall callQrUnknown(__int64 a1)
 {
-    std::cout << "callQrUnknown" << std::endl;
+    // std::cout << "callQrUnknown" << std::endl;
     switch (gState)
     {
     case State::Ready:
@@ -48,19 +48,19 @@ __int64 __fastcall callQrUnknown(__int64 a1)
         }
     case State::AfterCopy1:
         {
-            std::cout << "AfterCopy1" << std::endl;
+            // std::cout << "AfterCopy1" << std::endl;
             gState = State::AfterCopy2;
             return 1;
         }
     case State::AfterCopy2:
         {
-            std::cout << "AfterCopy2" << std::endl;
+            // std::cout << "AfterCopy2" << std::endl;
             gState = State::AfterCopy3;
             return 1;
         }
         case State::AfterCopy3:
         {
-            std::cout << "AfterCopy3" << std::endl;
+            // std::cout << "AfterCopy3" << std::endl;
             return 1;
         }
         default:  // NOLINT(clang-diagnostic-covered-switch-default)
@@ -70,19 +70,19 @@ __int64 __fastcall callQrUnknown(__int64 a1)
 
 bool __fastcall Send1(__int64, const void*, __int64)
 {
-    std::cout << "Send1" << std::endl;
+    // std::cout << "Send1" << std::endl;
     return true;
 }
 
 bool __fastcall Send2(__int64 a1, char a2)
 {
-    std::cout << "Send2" << std::endl;
+    // std::cout << "Send2" << std::endl;
     return true;
 }
 
 bool __fastcall Send3(__int64 a1)
 {
-    std::cout << "Send3" << std::endl;
+    // std::cout << "Send3" << std::endl;
     *(WORD*)(a1 + 88) = 0;
     *(BYTE*)(a1 + 90) = 0;
     return true;
@@ -90,7 +90,7 @@ bool __fastcall Send3(__int64 a1)
 
 bool __fastcall Send4(__int64 a1)
 {
-    std::cout << "Send4" << std::endl;
+    // std::cout << "Send4" << std::endl;
     *(BYTE*)(a1 + 88) = 1;
     *(int64_t*)(a1 + 32) = *(int64_t*)(a1 + 24);
     *(WORD*)(a1 + 89) = 0;
@@ -109,7 +109,7 @@ __int64 __fastcall copy_data(__int64 this_, void* dest, int length)
         gState = State::AfterCopy1;
         return data.size() + 1;
     }
-    std::cout << "No copy" << std::endl;
+    // std::cout << "No copy" << std::endl;
     return 0;
 }
 int gCount = 0;
@@ -132,7 +132,7 @@ extern "C" __declspec(dllexport) void Update()
 
 extern "C" __declspec(dllexport) void Init()
 {
-    std::cout << "PreInit" << std::endl;
+    // std::cout << "PreInit" << std::endl;
     auto amHandle = reinterpret_cast<uintptr_t>(GetModuleHandle(L"AMFrameWork.dll"));
     MH_Initialize();
     MH_CreateHook(reinterpret_cast<LPVOID>(amHandle + 0x161B0), qrInit, nullptr);
