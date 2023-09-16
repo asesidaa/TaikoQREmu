@@ -4,18 +4,24 @@
 #include <Windows.h>
 #include <MinHook.h>
 #include <iostream>
-#include <atomic>
 
 enum class State
 {
     Ready,
+    CopyWait,
     AfterCopy1,
     AfterCopy2,
 };
 
+enum class KeyState
+{
+    Left,
+    Push,
+    Pushing
+};
 
-std::atomic_bool gInsert = false;
 State gState = State::Ready;
+KeyState gKeyState = KeyState::Left;
 
 char __fastcall qrInit(int64_t a1)
 {
@@ -44,6 +50,7 @@ int64_t __fastcall callQrUnknown(int64_t a1)
     switch (gState)
     {
     case State::Ready:
+    case State::CopyWait:
         {
             // std::cout << "Ready" << std::endl;
             return 1;
@@ -95,13 +102,12 @@ bool __fastcall Send4(int64_t a1)
 
 int64_t __fastcall copy_data(int64_t this_, void* dest, int length)
 {
-    if (gInsert && gState == State::Ready)
+    if (gState == State::CopyWait)
     {
         std::cout << "Copy data, length: " << length << std::endl;
         std::string data =
             "BNTTCNID1";
         memcpy(dest, data.c_str(), data.size() + 1);
-        gInsert = false;
         gState = State::AfterCopy1;
         return data.size() + 1;
     }
@@ -113,6 +119,22 @@ int gCount = 0;
 
 extern "C" __declspec(dllexport) void Update()
 {
+    if (GetAsyncKeyState('P') & 0x8000)
+    {
+        if (gKeyState == KeyState::Left)
+        {
+            gKeyState = KeyState::Push;
+        }
+        else
+        {
+            gKeyState = KeyState::Pushing;
+        }
+    }
+    else
+    {
+        gKeyState = KeyState::Left;
+    }
+
     if (gState == State::AfterCopy2)
     {
         gCount++;
@@ -124,10 +146,10 @@ extern "C" __declspec(dllexport) void Update()
     }
     if (gState == State::Ready)
     {
-        if (GetAsyncKeyState('P') & 0x8000)
+        if (gKeyState == KeyState::Push)
         {
             std::cout << "Insert" << std::endl;
-            gInsert = true;
+            gState = State::CopyWait;
         }
     }
 }
