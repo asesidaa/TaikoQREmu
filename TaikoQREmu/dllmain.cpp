@@ -1,9 +1,12 @@
 // ReSharper disable CppClangTidyPerformanceNoIntToPtr
 // ReSharper disable CppClangTidyClangDiagnosticMicrosoftCast
 #include <cstdint>
+#include <filesystem>
 #include <Windows.h>
 #include <MinHook.h>
 #include <iostream>
+#include <vector>
+#include <fstream>
 
 enum class State
 {
@@ -20,8 +23,15 @@ enum class KeyState
     Pushing
 };
 
+enum class Mode
+{
+    Card,
+    Data
+};
+
 State gState = State::Ready;
 KeyState gKeyState = KeyState::Left;
+Mode gMode = Mode::Card;
 
 char __fastcall qrInit(int64_t a1)
 {
@@ -31,10 +41,9 @@ char __fastcall qrInit(int64_t a1)
 
 char __fastcall qrRead(int64_t a1)
 {
-    //auto type = *(DWORD*)(a1 + 16);
-    // std::cout << "qrRead: type " << type << std::endl;
     *reinterpret_cast<DWORD*>(a1 + 40) = 1;
     *reinterpret_cast<DWORD*>(a1 + 16) = 1;
+    *reinterpret_cast<BYTE*>(a1 + 112) = 0;
     return 1;
 }
 
@@ -46,7 +55,7 @@ char __fastcall qrClose(int64_t a1)
 
 int64_t __fastcall callQrUnknown(int64_t a1)
 {
-    // std::cout << "callQrUnknown" << std::endl;
+    //std::cout << "callQrUnknown, state: " << static_cast<int>(gState) << std::endl;
     switch (gState)
     {
     case State::Ready:
@@ -64,7 +73,7 @@ int64_t __fastcall callQrUnknown(int64_t a1)
     case State::AfterCopy2:
         {
             // std::cout << "AfterCopy2" << std::endl;
-            return 2;
+            return 1;
         }
     default: // NOLINT(clang-diagnostic-covered-switch-default)
         return 0;
@@ -73,19 +82,19 @@ int64_t __fastcall callQrUnknown(int64_t a1)
 
 bool __fastcall Send1(int64_t, const void*, int64_t)
 {
-    // std::cout << "Send1" << std::endl;
+    //std::cout << "Send1" << std::endl;
     return true;
 }
 
 bool __fastcall Send2(int64_t a1, char a2)
 {
-    // std::cout << "Send2" << std::endl;
+    //std::cout << "Send2" << std::endl;
     return true;
 }
 
 bool __fastcall Send3(int64_t a1)
 {
-    // std::cout << "Send3" << std::endl;
+    //std::cout << "Send3" << std::endl;
     *(WORD*)(a1 + 88) = 0;
     *(BYTE*)(a1 + 90) = 0;
     return true;
@@ -93,25 +102,71 @@ bool __fastcall Send3(int64_t a1)
 
 bool __fastcall Send4(int64_t a1)
 {
-    // std::cout << "Send4" << std::endl;
+    //std::cout << "Send4" << std::endl;
     *(BYTE*)(a1 + 88) = 1;
     *(int64_t*)(a1 + 32) = *(int64_t*)(a1 + 24);
     *(WORD*)(a1 + 89) = 0;
     return true;
 }
 
+std::vector<BYTE> readFileToByteBuffer(const std::string& relativePath) {
+    // Check if the file exists
+    if (!std::filesystem::exists(relativePath)) {
+        throw std::runtime_error("Qr file does not exist.");
+    }
+
+    // Read the file into a string
+    std::ifstream file(relativePath, std::ios::in | std::ios::binary);
+    if (!file.is_open()) {
+        throw std::runtime_error("Failed to open the file.");
+    }
+
+    const std::string content((std::istreambuf_iterator(file)), std::istreambuf_iterator<char>());
+    file.close();
+
+    // Calculate text length (assuming it fits into a single byte for this example)
+    if (content.size() > 255) {
+        throw std::runtime_error("Text is too long");
+    }
+    BYTE text_length = static_cast<BYTE>(content.size());
+
+    // Create the final byte buffer
+    std::vector<BYTE> byteBuffer = {
+        0x53, 0x31, 0x32, 0x00, 0x00, 0xff, 0xff, text_length, 0x01, 0x00
+    };
+
+    // Append the content bytes
+    for (char c : content) {
+        byteBuffer.push_back(static_cast<BYTE>(c));
+    }
+
+    // Append the ending bytes
+    byteBuffer.push_back(0xee);
+    byteBuffer.push_back(0xff);
+
+    return byteBuffer;
+}
+
 int64_t __fastcall copy_data(int64_t this_, void* dest, int length)
 {
-    if (gState == State::CopyWait)
+    if (gState == State::CopyWait && gMode == Mode::Card)
     {
         std::cout << "Copy data, length: " << length << std::endl;
-        std::string data =
+        const std::string data =
             "BNTTCNID1";
         memcpy(dest, data.c_str(), data.size() + 1);
         gState = State::AfterCopy1;
         return data.size() + 1;
     }
-    // std::cout << "No copy" << std::endl;
+    if (gState == State::CopyWait && gMode == Mode::Data)
+    {
+        std::cout << "Copy data, length: " << length << std::endl;
+        auto data = readFileToByteBuffer("plugins/qr.txt");
+        memcpy(dest, data.data(), data.size());
+        gState = State::AfterCopy1;
+        return data.size();
+    }
+    //std::cout << "No copy" << std::endl;
     return 0;
 }
 
@@ -121,6 +176,19 @@ extern "C" __declspec(dllexport) void Update()
 {
     if (GetAsyncKeyState('P') & 0x8000)
     {
+        gMode = Mode::Card;
+        if (gKeyState == KeyState::Left)
+        {
+            gKeyState = KeyState::Push;
+        }
+        else
+        {
+            gKeyState = KeyState::Pushing;
+        }
+    }
+    else if (GetAsyncKeyState('O') & 0x8000)
+    {
+        gMode = Mode::Data;
         if (gKeyState == KeyState::Left)
         {
             gKeyState = KeyState::Push;
